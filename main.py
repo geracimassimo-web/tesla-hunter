@@ -25,21 +25,21 @@ def get_autoscout():
         page.wait_for_timeout(5000)
 
         # prendi tutti i link annunci
-        elements = page.query_selector_all("a[href*='/annunci/']")
+        elements = page.query_selector_all("a")
 
-        for el in elements:
-            href = el.get_attribute("href")
-            text = el.inner_text()
+msg = "DEBUG AUTOSCOUT:\n\n"
 
-            if not href or not text:
-                continue
+for el in elements[:20]:
+    try:
+        text = el.inner_text()
+        msg += text + "\n\n"
+    except:
+        pass
 
-            t = text.lower()
+send(msg)
 
-            # 🔥 filtro semplice: solo LONG RANGE
-            if "long range" in t:
-                link = "https://www.autoscout24.it" + href
-                results.append(f"{text}\n{link}")
+browser.close()
+return []
 
         browser.close()
 
