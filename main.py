@@ -1,11 +1,14 @@
 import requests
-import re
+import json
+import os
 
 TELEGRAM_TOKEN = "8573311691:AAE5g32_JSYEHk-eiGiTs1OoupQfeUK0-Uc"
 CHAT_ID = "2022439793"
 
 MAX_PRICE = 31500
 MIN_YEAR = 2022
+
+SEEN_FILE = "seen.json"
 
 
 def send(msg):
@@ -16,98 +19,132 @@ def send(msg):
     })
 
 
+# ---------------- ANTI DUPLICATI ----------------
+
+def load_seen():
+    try:
+        with open(SEEN_FILE, "r") as f:
+            return set(json.load(f))
+    except:
+        return set()
+
+
+def save_seen(seen):
+    with open(SEEN_FILE, "w") as f:
+        json.dump(list(seen), f)
+
+
 # ---------------- FILTRO ----------------
 
-def is_valid(title, price):
-    title = title.lower()
+def is_valid(title, price, year):
+    t = title.lower()
+
+    if "model y" not in t:
+        return False
+
+    if "long range" not in t and "performance" not in t:
+        return False
 
     if price and price > MAX_PRICE:
         return False
 
-    if "model y" not in title:
-        return False
-
-    if "long range" not in title and "performance" not in title:
+    if year and year < MIN_YEAR:
         return False
 
     return True
 
 
-# ---------------- TESLA ----------------
-
-def get_tesla():
-    url = "https://www.tesla.com/it_IT/inventory/used/my?arrangeby=plh&zip=20100"
-
-    r = requests.get(url)
-
-    results = []
-
-    if "Model Y" in r.text:
-        results.append("TESLA UFFICIALE:\n" + url)
-
-    return results
-
-
-# ---------------- SUBITO ----------------
+# ---------------- SUBITO (API REALE) ----------------
 
 def get_subito():
-    url = "https://www.subito.it/annunci-italia/vendita/auto/?q=tesla%20model%20y"
+    url = "https://api.subito.it/search"
 
-    r = requests.get(url)
+    params = {
+        "q": "tesla model y",
+        "lim": 20
+    }
 
-    results = []
-
-    matches = re.findall(r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', r.text)
-
-    for link, title in matches:
-        if "tesla" in title.lower():
-            if is_valid(title, None):
-                results.append("SUBITO:\nhttps://www.subito.it" + link)
-
-    return results[:3]
-
-
-# ---------------- AUTOMOBILE ----------------
-
-def get_automobile():
-    url = "https://www.automobile.it/auto-usate/tesla/model-y/"
-
-    r = requests.get(url)
+    headers = {"User-Agent": "Mozilla/5.0"}
 
     results = []
 
-    if "Model Y" in r.text:
-        results.append("AUTOMOBILE.IT:\n" + url)
+    try:
+        r = requests.get(url, params=params, headers=headers)
+        data = r.json()
+
+        for item in data.get("items", []):
+            title = item.get("subject", "")
+            price = item.get("price", {}).get("value")
+            link = item.get("url")
+
+            if not title or not link:
+                continue
+
+            if is_valid(title, price, None):
+                results.append({
+                    "id": link,
+                    "title": title,
+                    "price": price,
+                    "link": link,
+                    "source": "Subito"
+                })
+
+    except:
+        pass
 
     return results
 
 
-# ---------------- SPOTICAR ----------------
+# ---------------- TESLA API (CORRETTA) ----------------
 
-def get_spoticar():
-    url = "https://www.spoticar.it/auto-usate/tesla/model-y"
+def get_tesla():
+    url = "https://www.tesla.com/inventory/api/v4/inventory-results"
 
-    r = requests.get(url)
+    payload = {
+        "query": {
+            "model": "my",
+            "condition": "used",
+            "arrangeby": "Price",
+            "order": "asc",
+            "market": "IT",
+            "language": "it",
+            "super_region": "europe"
+        },
+        "offset": 0,
+        "count": 50
+    }
+
+    headers = {"User-Agent": "Mozilla/5.0"}
 
     results = []
 
-    if "Model Y" in r.text:
-        results.append("SPOTICAR:\n" + url)
+    try:
+        r = requests.post(url, json=payload, headers=headers)
+        data = r.json()
 
-    return results
+        for car in data.get("results", []):
+            price = car.get("InventoryPrice", 0)
+            year = car.get("Year", 0)
+            trim = car.get("TrimName", "")
+            vin = car.get("VIN", "")
 
+            title = f"Tesla Model Y {trim}"
 
-# ---------------- ARIELCAR ----------------
+            if not is_valid(title, price, year):
+                continue
 
-def get_arielcar():
-    url = "https://www.arielcar.it/auto-usate"
+            link = f"https://www.tesla.com/it_IT/myorder/{vin}"
 
-    r = requests.get(url)
+            results.append({
+                "id": vin,
+                "title": title,
+                "price": price,
+                "link": link,
+                "source": "Tesla"
+            })
 
-    results = []
-
-    if "tesla" in r.text.lower():
-        results.append("ARIELCAR:\n" + url)
+    except:
+        pass
 
     return results
 
@@ -115,23 +152,29 @@ def get_arielcar():
 # ---------------- MAIN ----------------
 
 def main():
-    results = []
+    seen = load_seen()
 
-    results += get_tesla()
-    results += get_subito()
-    results += get_automobile()
-    results += get_spoticar()
-    results += get_arielcar()
+    all_results = []
+    all_results += get_subito()
+    all_results += get_tesla()
 
-    if not results:
-        send("❌ Nessuna Tesla valida trovata")
+    new_results = [r for r in all_results if r["id"] not in seen]
+
+    if not new_results:
+        send("🔍 Nessuna nuova Tesla valida trovata")
         return
 
-    msg = "🚗 TESLA TROVATE (FILTRATE):\n\n"
+    msg = "🚗 TESLA NUOVE TROVATE:\n\n"
 
-    for r in results:
-        msg += r + "\n\n"
+    for r in new_results:
+        msg += f"{r['title']}\n"
+        msg += f"💰 {r['price']}€\n"
+        msg += f"🔗 {r['link']}\n"
+        msg += f"📍 {r['source']}\n\n"
 
+        seen.add(r["id"])
+
+    save_seen(seen)
     send(msg)
 
 
