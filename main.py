@@ -159,7 +159,7 @@ def main():
     all_results += get_subito()
     all_results += get_tesla()
 
-    new_results = [r for r in all_results if r["id"] not in seen]
+    new_results = all_results
 
     if not new_results:
         send("🔍 Nessuna nuova Tesla valida trovata")
