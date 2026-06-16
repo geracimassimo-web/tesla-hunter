@@ -10,19 +10,35 @@ def send(msg):
         "text": msg
     })
 
+def get_tesla():
+    url = "https://www.tesla.com/it_IT/inventory/used/my?arrangeby=plh&zip=20100&range=0"
+
+    r = requests.get(url)
+
+    cars = []
+
+    if "Model Y" in r.text:
+        cars.append("🚗 Tesla usate disponibili (controlla subito):\n" + url)
+
+    return cars
+
+
 def main():
-    links = [
-        "https://www.autoscout24.it/lst/tesla/model-y?sort=price&desc=0&priceto=31500",
-        "https://www.automobile.it/auto-usate/tesla/model-y/?prezzo_max=31500",
-        "https://www.subito.it/annunci-italia/vendita/auto/?q=tesla%20model%20y"
-    ]
+    results = []
 
-    msg = "🚗 TESLA ALERT\n\nControlla qui le nuove occasioni:\n\n"
+    results += get_tesla()
 
-    for link in links:
-        msg += link + "\n\n"
+    if not results:
+        send("❌ Nessuna Tesla interessante trovata")
+        return
+
+    msg = "🚗 TESLA TROVATE:\n\n"
+
+    for r in results:
+        msg += r + "\n\n"
 
     send(msg)
+
 
 if __name__ == "__main__":
     main()
