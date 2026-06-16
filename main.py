@@ -1,5 +1,5 @@
 import requests
-import re
+from playwright.sync_api import sync_playwright
 
 TELEGRAM_TOKEN = "8573311691:AAE5g32_JSYEHk-eiGiTs1OoupQfeUK0-Uc"
 CHAT_ID = "022439793"
@@ -11,33 +11,32 @@ def send(msg):
         "text": msg
     })
 
-def get_autoscout():
-    url = "https://www.autoscout24.it/lst/tesla/model-y?sort=price&desc=0&ustate=N%2CU&atype=C&cy=I&pricefrom=20000&priceto=31500"
-
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-
-    r = requests.get(url, headers=headers)
-    return r.text
-
-
-def extract_links(html):
+def get_links():
     links = []
 
-    parts = html.split('"url":"')
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
 
-    for part in parts[1:]:
-        link = part.split('"')[0]
+        page.goto("https://www.autoscout24.it/lst/tesla/model-y?sort=price&desc=0&priceto=31500")
 
-        if "autoscout24.it/annunci" in link:
-            links.append(link)
+        page.wait_for_timeout(5000)
+
+        elements = page.query_selector_all("a[href*='/annunci/']")
+
+        for el in elements:
+            href = el.get_attribute("href")
+            if href and "/annunci/" in href:
+                full_link = "https://www.autoscout24.it" + href
+                links.append(full_link)
+
+        browser.close()
 
     return list(set(links))
 
+
 def main():
-    html = get_autoscout()
-    links = extract_links(html)
+    links = get_links()
 
     if not links:
         send("❌ Nessuna Tesla trovata")
@@ -45,7 +44,7 @@ def main():
 
     msg = "🚗 TESLA TROVATE:\n\n"
 
-    for link in links[:5]:  # primi 5 annunci
+    for link in links[:5]:
         msg += link + "\n\n"
 
     send(msg)
