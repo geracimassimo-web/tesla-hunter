@@ -23,9 +23,17 @@ def get_autoscout():
 
 
 def extract_links(html):
-    links = re.findall(r'https://www.autoscout24.it/annunci/[^"]+', html)
-    return list(set(links))
+    links = []
 
+    parts = html.split('"url":"')
+
+    for part in parts[1:]:
+        link = part.split('"')[0]
+
+        if "autoscout24.it/annunci" in link:
+            links.append(link)
+
+    return list(set(links))
 
 def main():
     html = get_autoscout()
