@@ -37,7 +37,7 @@ def get_autoscout():
                 t = text.lower()
 
                 # 🔥 filtro intelligente
-                if "model y" in t and any(k in t for k in ["long range", "dual motor", "awd"]):
+                if "model y" in t and any(k in t for k in ["long", "dual", "awd", "performance"]):
 
                     link_el = el.query_selector("a")
                     if link_el:
