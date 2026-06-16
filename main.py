@@ -43,14 +43,14 @@ def is_valid(title, price, year):
         return False
 
     valid_keywords = [
-    "long range",
-    "performance",
-    "dual motor",
-    "awd"
-]
+        "long range",
+        "performance",
+        "dual motor",
+        "awd"
+    ]
 
-if not any(k in t for k in valid_keywords):
-    return False
+    if not any(k in t for k in valid_keywords):
+        return False
 
     if price and price > MAX_PRICE:
         return False
