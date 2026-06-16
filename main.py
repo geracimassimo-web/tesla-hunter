@@ -68,7 +68,7 @@ def get_subito():
 
     params = {
         "q": "tesla model y",
-        "lim": 20
+        "lim": 10
     }
 
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -77,6 +77,10 @@ def get_subito():
 
     try:
         r = requests.get(url, params=params, headers=headers)
+
+        print("STATUS:", r.status_code)
+        print("TEXT:", r.text[:500])  # primi 500 caratteri
+
         data = r.json()
 
         for item in data.get("items", []):
@@ -84,22 +88,12 @@ def get_subito():
             price = item.get("price", {}).get("value")
             link = item.get("url")
 
-            if not title or not link:
-                continue
+            results.append(f"{title} - {price}€\n{link}")
 
-            if is_valid(title, price, None):
-                results.append({
-                    "id": link,
-                    "title": title,
-                    "price": price,
-                    "link": link,
-                    "source": "Subito"
-                })
+    except Exception as e:
+        return [f"ERRORE SUBITO: {e}"]
 
-    except:
-        pass
-
-    return results
+    return results[:5]
 
 
 # ---------------- TESLA API (CORRETTA) ----------------
