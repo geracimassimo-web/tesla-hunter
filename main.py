@@ -1,15 +1,9 @@
 import requests
-import json
 import os
+from playwright.sync_api import sync_playwright
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = "2022439793"
-
-MAX_PRICE = 31500
-MIN_YEAR = 2022
-
-SEEN_FILE = "seen.json"
-
 
 def send(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -18,164 +12,52 @@ def send(msg):
         "text": msg
     })
 
-
-# ---------------- ANTI DUPLICATI ----------------
-
-def load_seen():
-    try:
-        with open(SEEN_FILE, "r") as f:
-            return set(json.load(f))
-    except:
-        return set()
-
-
-def save_seen(seen):
-    with open(SEEN_FILE, "w") as f:
-        json.dump(list(seen), f)
-
-
-# ---------------- FILTRO ----------------
-
-def is_valid(title, price, year):
-    t = title.lower()
-
-    if "model y" not in t:
-        return False
-
-    valid_keywords = [
-        "long range",
-        "performance",
-        "dual motor",
-        "awd"
-    ]
-
-    if not any(k in t for k in valid_keywords):
-        return False
-
-    if price and price > MAX_PRICE:
-        return False
-
-    if year and year < MIN_YEAR:
-        return False
-
-    return True
-
-
-# ---------------- SUBITO (API REALE) ----------------
-
-def get_subito():
-    url = "https://api.subito.it/search"
-
-    params = {
-        "q": "tesla model y",
-        "lim": 10
-    }
-
-    headers = {"User-Agent": "Mozilla/5.0"}
-
+def get_autoscout():
     results = []
 
-    try:
-        r = requests.get(url, params=params, headers=headers)
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
 
-        print("STATUS:", r.status_code)
-        print("TEXT:", r.text[:500])  # primi 500 caratteri
+        page.goto("https://www.autoscout24.it/lst/tesla/model-y")
 
-        data = r.json()
+        # aspetta caricamento
+        page.wait_for_timeout(5000)
 
-        for item in data.get("items", []):
-            title = item.get("subject", "")
-            price = item.get("price", {}).get("value")
-            link = item.get("url")
+        # prendi tutti i link annunci
+        elements = page.query_selector_all("a[href*='/annunci/']")
 
-            results.append(f"{title} - {price}€\n{link}")
+        for el in elements:
+            href = el.get_attribute("href")
+            text = el.inner_text()
 
-    except Exception as e:
-        return [f"ERRORE SUBITO: {e}"]
-
-    return results[:5]
-
-
-# ---------------- TESLA API (CORRETTA) ----------------
-
-def get_tesla():
-    url = "https://www.tesla.com/inventory/api/v4/inventory-results"
-
-    payload = {
-        "query": {
-            "model": "my",
-            "condition": "used",
-            "arrangeby": "Price",
-            "order": "asc",
-            "market": "IT",
-            "language": "it",
-            "super_region": "europe"
-        },
-        "offset": 0,
-        "count": 50
-    }
-
-    headers = {"User-Agent": "Mozilla/5.0"}
-
-    results = []
-
-    try:
-        r = requests.post(url, json=payload, headers=headers)
-        data = r.json()
-
-        for car in data.get("results", []):
-            price = car.get("InventoryPrice", 0)
-            year = car.get("Year", 0)
-            trim = car.get("TrimName", "")
-            vin = car.get("VIN", "")
-
-            title = f"Tesla Model Y {trim}"
-
-            if not is_valid(title, price, year):
+            if not href or not text:
                 continue
 
-            link = f"https://www.tesla.com/it_IT/myorder/{vin}"
+            t = text.lower()
 
-            results.append({
-                "id": vin,
-                "title": title,
-                "price": price,
-                "link": link,
-                "source": "Tesla"
-            })
+            # 🔥 filtro semplice: solo LONG RANGE
+            if "long range" in t:
+                link = "https://www.autoscout24.it" + href
+                results.append(f"{text}\n{link}")
 
-    except:
-        pass
+        browser.close()
 
-    return results
+    return list(set(results))[:5]
 
-
-# ---------------- MAIN ----------------
 
 def main():
-    seen = load_seen()
+    results = get_autoscout()
 
-    all_results = []
-    all_results += get_subito()
-    all_results += get_tesla()
-
-    new_results = all_results
-
-    if not new_results:
-        send("🔍 Nessuna nuova Tesla valida trovata")
+    if not results:
+        send("❌ Nessuna Model Y Long Range trovata")
         return
 
-    msg = "🚗 TESLA NUOVE TROVATE:\n\n"
+    msg = "🚗 MODEL Y LONG RANGE:\n\n"
 
-    for r in new_results:
-        msg += f"{r['title']}\n"
-        msg += f"💰 {r['price']}€\n"
-        msg += f"🔗 {r['link']}\n"
-        msg += f"📍 {r['source']}\n\n"
+    for r in results:
+        msg += r + "\n\n"
 
-        seen.add(r["id"])
-
-    save_seen(seen)
     send(msg)
 
 
