@@ -15,6 +15,8 @@ def send(msg):
 
 
 def get_autoscout():
+    results = []
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
 
@@ -24,21 +26,39 @@ def get_autoscout():
 
         page.goto("https://www.autoscout24.it/lst/tesla/model-y", timeout=60000)
 
-        # aspetta che compaiano gli annunci veri
+        # aspetta caricamento annunci veri
         page.wait_for_selector("article", timeout=15000)
 
         elements = page.query_selector_all("article")
 
-        msg = "DEBUG ANNUNCI:\n\n"
-
-        for el in elements[:10]:
+        for el in elements:
             try:
                 text = el.inner_text()
-                msg += text[:200] + "\n\n"
+                t = text.lower()
+
+                # 🔥 filtro intelligente
+                if "model y" in t and any(k in t for k in ["long range", "dual motor", "awd"]):
+
+                    link_el = el.query_selector("a")
+                    if link_el:
+                        href = link_el.get_attribute("href")
+
+                        if href:
+                            link = "https://www.autoscout24.it" + href
+                            results.append(f"{text[:150]}\n{link}")
+
             except:
                 pass
 
         browser.close()
+
+    if not results:
+        return "❌ Nessuna Model Y Long Range trovata"
+
+    msg = "🚗 TESLA MODEL Y TROVATE:\n\n"
+
+    for r in results[:5]:
+        msg += r + "\n\n"
 
     return msg
 
