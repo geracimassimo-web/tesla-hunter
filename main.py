@@ -17,22 +17,23 @@ def get_autoscout():
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
-        page.goto("https://www.autoscout24.it/lst/tesla/model-y")
+        page.goto("https://www.autoscout24.it/lst/tesla/model-y", timeout=60000)
 
-        page.wait_for_timeout(5000)
+    # aspetta che compaiano gli annunci veri
+        page.wait_for_selector("article", timeout=15000)
 
-        elements = page.query_selector_all("a")
+        elements = page.query_selector_all("article")
 
-        msg = "DEBUG AUTOSCOUT:\n\n"
+        msg = "DEBUG ANNUNCI:\n\n"
 
-        for el in elements[:20]:
-            try:
-                text = el.inner_text()
-                msg += text + "\n\n"
-            except:
-                pass
+for el in elements[:10]:
+    try:
+        text = el.inner_text()
+        msg += text[:200] + "\n\n"  # limitiamo lunghezza
+    except:
+        pass
 
-        send(msg)
+send(msg)
 
         browser.close()
 
