@@ -1,8 +1,6 @@
 name: Tesla Hunter
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 jobs:
@@ -17,7 +15,10 @@ jobs:
         with:
           python-version: '3.11'
 
-- name: Install dependencies
-  run: |
-    pip install requests playwright
-    playwright install --with-deps
+      - name: Install dependencies
+        run: |
+          pip install requests playwright
+          playwright install --with-deps
+
+      - name: Run script
+        run: python main.py
