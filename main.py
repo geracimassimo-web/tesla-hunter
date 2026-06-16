@@ -20,9 +20,10 @@ def get_links():
 
         page.goto("https://www.autoscout24.it/lst/tesla/model-y?sort=price&desc=0&priceto=31500")
 
-        page.wait_for_timeout(5000)
+        # aspetta che gli annunci siano caricati
+        page.wait_for_selector("article")
 
-        elements = page.query_selector_all("a[href*='/annunci/']")
+        elements = page.query_selector_all("article a")
 
         for el in elements:
             href = el.get_attribute("href")
