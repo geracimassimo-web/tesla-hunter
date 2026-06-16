@@ -34,10 +34,15 @@ def get_autoscout():
         for el in elements:
             try:
                 text = el.inner_text()
-                t = text.lower()
+                t = text.lower().replace("\n", " ")
 
                 # 🔥 filtro intelligente
-                if "model y" in t and any(k in t for k in ["long", "dual", "awd", "performance"]):
+                if "model y" in t and (
+                ("long" in t and "range" in t) or
+                "dual motor" in t or
+                "awd" in t or
+                "performance" in t
+            ):
 
                     link_el = el.query_selector("a")
                     if link_el:
