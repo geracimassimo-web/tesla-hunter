@@ -10,8 +10,24 @@ def send(msg):
         "text": msg
     })
 
+def get_autoscout():
+    url = "https://www.autoscout24.it/lst/tesla/model-y?sort=price&desc=0&ustate=N%2CU&atype=C&cy=I&pricefrom=20000&priceto=31500"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    r = requests.get(url, headers=headers)
+
+    return r.text
+
+
 def main():
-    send("🚀 Tesla Hunter attivo!")
+    html = get_autoscout()
+
+    # TEST: per ora mandiamo solo conferma
+    if "Model Y" in html:
+        send("🚗 AutoScout collegato! Tesla trovate!")
 
 if __name__ == "__main__":
     main()
