@@ -17,10 +17,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+- name: Install dependencies
   run: |
     pip install requests playwright
-    playwright install
-
-      - name: Run script
-        run: python main.py
+    playwright install --with-deps
