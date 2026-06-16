@@ -13,38 +13,31 @@ def send(msg):
     })
 
 def get_autoscout():
-    results = []
-
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
         page.goto("https://www.autoscout24.it/lst/tesla/model-y")
 
-        # aspetta caricamento
         page.wait_for_timeout(5000)
 
-        # prendi tutti i link annunci
         elements = page.query_selector_all("a")
 
-msg = "DEBUG AUTOSCOUT:\n\n"
+        msg = "DEBUG AUTOSCOUT:\n\n"
 
-for el in elements[:20]:
-    try:
-        text = el.inner_text()
-        msg += text + "\n\n"
-    except:
-        pass
+        for el in elements[:20]:
+            try:
+                text = el.inner_text()
+                msg += text + "\n\n"
+            except:
+                pass
 
-send(msg)
-
-browser.close()
-return []
+        send(msg)
 
         browser.close()
 
-    return list(set(results))[:5]
-
+    return []
+   
 
 def main():
     results = get_autoscout()
