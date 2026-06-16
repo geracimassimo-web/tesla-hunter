@@ -42,8 +42,15 @@ def is_valid(title, price, year):
     if "model y" not in t:
         return False
 
-    if "long range" not in t and "performance" not in t:
-        return False
+    valid_keywords = [
+    "long range",
+    "performance",
+    "dual motor",
+    "awd"
+]
+
+if not any(k in t for k in valid_keywords):
+    return False
 
     if price and price > MAX_PRICE:
         return False
