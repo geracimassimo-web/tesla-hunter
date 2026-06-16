@@ -2,7 +2,7 @@ import requests
 import json
 import os
 
-TELEGRAM_TOKEN = "8573311691:AAE5g32_JSYEHk-eiGiTs1OoupQfeUK0-Uc"
+TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = "2022439793"
 
 MAX_PRICE = 31500
