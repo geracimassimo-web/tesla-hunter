@@ -1,112 +1,133 @@
-import requests
 import os
-import re
-from playwright.sync_api import sync_playwright
+import json
+import requests
+import urllib.parse
+import time
 
-TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
+# ==========================================
+# 🛠️ CONFIGURAZIONE FILTRI & CREDENZIALI
+# ==========================================
 CHAT_ID = "2022439793"
+TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 
+MODELLO = "m3"            # "m3" per Model 3, "my" per Model Y
+PREZZO_MASSIMO = 36000    # Imposta il tuo budget massimo in Euro
+KM_MASSIMI = 80000        # Chilometri massimi desiderati
+ANNO_MINIMO = 2021        # Anno minimo di immatricolazione
+FILE_VISTI = "visti.json"
+# ==========================================
 
-def send(msg):
+def invia_telegram(testo):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": msg
-    })
+    payload = {"chat_id": CHAT_ID, "text": testo, "parse_mode": "HTML"}
+    requests.post(url, json=payload)
 
+def carica_auto_viste():
+    if os.path.exists(FILE_VISTI):
+        with open(FILE_VISTI, "r") as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError:
+                return []
+    return []
 
-def extract_details(page, url):
+def salva_auto_viste(lista_viste):
+    with open(FILE_VISTI, "w") as f:
+        json.dump(lista_vistes, f, indent=4)
+
+def analizza_inventario_tesla():
+    visti = carica_auto_viste()
+    nuovi_visti = list(visti)
+    
+    # Costruiamo la richiesta ufficiale per l'API di Tesla Italia
+    query_struttura = {
+        "query": {
+            "model": MODELLO,
+            "condition": "used",
+            "options": {},
+            "arrangeby": "Price",
+            "order": "asc",
+            "market": "IT",
+            "language": "it",
+            "super_region": "europe"
+        },
+        "offset": 0,
+        "count": 80
+    }
+    
+    query_iniziale = urllib.parse.quote(json.dumps(query_struttura))
+    url_api = f"https://www.tesla.com/inventory/api/v1/inventory-results?query={query_iniziale}"
+    
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    
+    count_totale_filtrate = 0
+    count_vecchie = 0
+    count_nuove = 0
+
     try:
-        page.goto(url, timeout=60000)
-        page.wait_for_timeout(3000)
+        response = requests.get(url_api, headers=headers, timeout=15)
+        response.raise_for_status()
+        dati = response.json()
+        
+        # Se non ci sono risultati nell'inventario
+        if not dati.get("results"):
+            invia_telegram("ℹ️ Nessuna Tesla usata disponibile nell'inventario generale.")
+            return
 
-        text = page.inner_text("body")
+        for auto in dati["results"]:
+            # Estrazione dati sicura dall'API di Tesla
+            vin = auto.get("VIN")
+            prezzo = auto.get("Price", 0)
+            chilometri = auto.get("Odometer", 0)
+            anno = int(auto.get("Year", 0))
+            allestimento = auto.get("TrimName", "Standard")
+            colore = auto.get("Paint", "N/D")
+            
+            # 1. APPLICAZIONE FILTRI
+            if prezzo > PREZZO_MASSIMO or chilometri > KM_MASSIMI or anno < ANNO_MINIMO:
+                continue # Salta questa auto perché non rispetta i tuoi filtri
+            
+            count_totale_filtrate += 1
+            
+            # 2. CONTROLLO DUPLICATI VIA VIN
+            if vin in visti:
+                count_vecchie += 1
+                continue # Salta la notifica perché l'avevi già vista nei giorni scorsi
+            
+            # Se arriva qui, l'auto è NUOVA
+            count_nuove += 1
+            nuovi_visti.append(vin)
+            
+            # Generazione del link diretto dell'auto
+            link_auto = f"https://www.tesla.com/it_IT/inventory/used/{MODELLO}?id={vin}"
+            
+            # Messaggio di notifica per la nuova auto
+            messaggio_auto = (
+                f"🚗 <b>NUOVA TESLA INVENTARIO!</b>\n\n"
+                f"• <b>Modello:</b> Model {MODELLO.upper()} {allestimento}\n"
+                f"• <b>Prezzo:</b> {prezzo:,} €\n"
+                f"• <b>KM:</b> {chilometri:,} km\n"
+                f"• <b>Anno:</b> {anno}\n"
+                f"• <b>Colore:</b> {colore}\n\n"
+                f"🔗 <a href='{link_auto}'>Apri Annuncio Ufficiale</a>"
+            )
+            invia_telegram(messaggio_auto)
+            time.sleep(2) # Evita il ban per spam da Telegram
 
-        # -------- PREZZO --------
-        prezzo_match = re.search(r'€\s*([\d\.]+)', text)
-        if not prezzo_match:
-            return None
+        # 3. INVIO RESOCONTO GIORNALIERO
+        resoconto = (
+            f"📊 <b>Resoconto Giornaliero Tesla</b>\n"
+            f"• Auto totali corrispondenti ai tuoi filtri: <b>{count_totale_filtrate}</b>\n"
+            f"• Già viste in precedenza (scartate): <b>{count_vecchie}</b>\n"
+            f"• Nuove opportunità inviate oggi: <b>{count_nuove}</b>"
+        )
+        invia_telegram(resoconto)
+        
+        # Salviamo la nuova lista aggiornata per domani
+        salva_auto_viste(nuovi_visti)
 
-        prezzo = int(prezzo_match.group(1).replace(".", ""))
-
-        # -------- ANNO --------
-        anno_match = re.search(r'(\d{2})/(\d{4})', text)
-        if not anno_match:
-            return None
-
-        anno = int(anno_match.group(2))
-
-        # -------- KM --------
-        km_match = re.search(r'([\d\.]+)\s*km', text.lower())
-        km = None
-        if km_match:
-            km = int(km_match.group(1).replace(".", ""))
-
-        return prezzo, anno, km
-
-    except:
-        return None
-
-
-def get_autoscout():
-    results = []
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(user_agent="Mozilla/5.0")
-
-        page.goto("https://www.autoscout24.it/lst/tesla/model-y", timeout=60000)
-        page.wait_for_timeout(5000)
-
-        page.mouse.wheel(0, 20000)
-        page.wait_for_timeout(3000)
-
-        links = page.query_selector_all("a[href*='/annunci/']")
-
-        urls = []
-        for el in links:
-            href = el.get_attribute("href")
-            if href and "/annunci/" in href:
-                urls.append("https://www.autoscout24.it" + href)
-
-        urls = list(set(urls))[:10]
-
-        for url in urls:
-            details = extract_details(page, url)
-            if not details:
-                continue
-
-            prezzo, anno, km = details
-
-            # 🔥 FILTRI
-            if prezzo > 31500 or prezzo < 20000:
-                continue
-
-            if anno < 2022:
-                continue
-
-            if km and km > 180000:
-                continue
-
-            results.append(f"€{prezzo} | {anno} | {km}km\n{url}")
-
-        browser.close()
-
-    if not results:
-        return "❌ Nessuna Tesla valida trovata"
-
-    msg = "🚗 TESLA MODEL Y (MATCH REALI):\n\n"
-
-    for r in results:
-        msg += r + "\n\n"
-
-    return msg
-
-
-def main():
-    msg = get_autoscout()
-    send(msg)
-
+    except Exception as e:
+        invia_telegram(f"⚠️ Errore durante lo screening dell'inventario: {e}")
 
 if __name__ == "__main__":
-    main()
+    analizza_inventario_tesla()
