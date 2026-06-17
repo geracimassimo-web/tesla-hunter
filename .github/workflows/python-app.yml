@@ -3,10 +3,10 @@ name: Tesla Hunter
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 8 * * *' # Gira in automatico ogni giorno alle 08:00 UTC (10:00 italiane)
+    - cron: '0 8 * * *' # Gira in automatico ogni giorno
 
 permissions:
-  contents: write # Consente a GitHub di salvare il file delle auto già viste
+  contents: write # Permesso fondamentale per salvare i doppioni
 
 jobs:
   run:
@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install curl_cffi
 
       - name: Run script
         env:
@@ -35,8 +35,7 @@ jobs:
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
-          # Controlla se il file visti.json esiste prima di aggiungerlo
-          if [ -f visti.json ]; then
-            git add visti.json
-            git diff-index --quiet HEAD || git commit -m "Aggiornato elenco auto viste [skip ci]" && git push
-          fi
+          # Crea il file se non esiste al primo avvio
+          if [ ! -f visti.json ]; then echo "[]" > visti.json; fi
+          git add visti.json
+          git diff-index --quiet HEAD || git commit -m "Aggiornato elenco auto viste [skip ci]" && git push
