@@ -3,7 +3,10 @@ name: Tesla Hunter
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 8 * * *' # Esegue ogni giorno alle 08:00 UTC (10:00 in Italia)
+    - cron: '0 8 * * *' # Gira in automatico ogni giorno alle 08:00 UTC (10:00 italiane)
+
+permissions:
+  contents: write # Consente a GitHub di salvare il file delle auto già viste
 
 jobs:
   run:
@@ -21,10 +24,19 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          playwright install chromium --with-deps
+          pip install requests
 
       - name: Run script
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: python main.py
+
+      - name: Salva cronologia auto viste
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "actions@github.com"
+          # Controlla se il file visti.json esiste prima di aggiungerlo
+          if [ -f visti.json ]; then
+            git add visti.json
+            git diff-index --quiet HEAD || git commit -m "Aggiornato elenco auto viste [skip ci]" && git push
+          fi
