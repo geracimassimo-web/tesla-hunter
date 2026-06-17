@@ -1,5 +1,6 @@
 import requests
 import os
+import re
 from playwright.sync_api import sync_playwright
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
@@ -32,7 +33,6 @@ def get_autoscout():
         page.mouse.wheel(0, 8000)
         page.wait_for_timeout(3000)
 
-        # 🔥 PRENDIAMO DIRETTAMENTE I LINK ANNUNCI
         links = page.query_selector_all("a[href*='/annunci/']")
 
         for link_el in links:
@@ -45,26 +45,58 @@ def get_autoscout():
 
                 t = text.lower().replace("\n", " ")
 
-                # 🔥 filtro più realistico
-                if "model y" in t:
+                # 🔥 filtro base
+                if "model y" not in t:
+                    continue
 
-                    # NON filtriamo troppo → vediamo tutto
-                    full_link = "https://www.autoscout24.it" + href
+                # ---------------- PREZZO ----------------
+                prezzo_match = re.search(r'€\s*([\d\.]+)', text)
 
-                    results.append(f"{text[:100]}\n{full_link}")
+                if not prezzo_match:
+                    continue
+
+                prezzo = int(prezzo_match.group(1).replace(".", ""))
+
+                # filtro prezzo
+                if prezzo > 31500:
+                    continue
+
+                if prezzo < 20000:
+                    continue
+
+                # ---------------- ANNO ----------------
+                anno = None
+
+                for y in ["2026", "2025", "2024", "2023", "2022", "2021"]:
+                    if y in text:
+                        anno = int(y)
+                        break
+
+                if anno is None:
+                    continue
+
+                if anno < 2022:
+                    continue
+
+                # ---------------- LINK ----------------
+                if "/annunci/" not in href:
+                    continue
+
+                link = "https://www.autoscout24.it" + href
+
+                results.append(f"€{prezzo} | {anno}\n{text[:100]}\n{link}")
 
             except:
                 pass
 
         browser.close()
 
-    # rimuovi duplicati
     results = list(set(results))
 
     if not results:
-        return "❌ Nessuna Model Y trovata (strano!)"
+        return "❌ Nessuna Tesla valida trovata"
 
-    msg = "🚗 TESLA MODEL Y (GREZZO):\n\n"
+    msg = "🚗 TESLA MODEL Y (MATCH):\n\n"
 
     for r in results[:10]:
         msg += r + "\n\n"
