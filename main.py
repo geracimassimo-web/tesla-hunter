@@ -1,14 +1,14 @@
 import os
 import json
-import requests
 import urllib.parse
 import time
+from curl_cffi import requests # 🪄 Qui avviene la magia: usiamo la versione camuffata
 
 # ==========================================
 # 🛠️ CONFIGURAZIONE FILTRI & CREDENZIALI
 # ==========================================
 CHAT_ID = "2022439793"
-TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 
 MODELLO = "m3"            # "m3" per Model 3, "my" per Model Y
 PREZZO_MASSIMO = 36000    # Imposta il tuo budget massimo in Euro
@@ -20,6 +20,7 @@ FILE_VISTI = "visti.json"
 def invia_telegram(testo):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": testo, "parse_mode": "HTML"}
+    # Per Telegram usiamo la richiesta base, non serve camuffarsi
     requests.post(url, json=payload)
 
 def carica_auto_viste():
@@ -33,7 +34,7 @@ def carica_auto_viste():
 
 def salva_auto_viste(lista_viste):
     with open(FILE_VISTI, "w") as f:
-        json.dump(lista_vistes, f, indent=4)
+        json.dump(lista_viste, f, indent=4)
 
 def analizza_inventario_tesla():
     visti = carica_auto_viste()
@@ -58,14 +59,20 @@ def analizza_inventario_tesla():
     query_iniziale = urllib.parse.quote(json.dumps(query_struttura))
     url_api = f"https://www.tesla.com/inventory/api/v1/inventory-results?query={query_iniziale}"
     
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    # Aggiungiamo degli header più realistici
+    headers = {
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7"
+    }
     
     count_totale_filtrate = 0
     count_vecchie = 0
     count_nuove = 0
 
     try:
-        response = requests.get(url_api, headers=headers, timeout=15)
+        # Aggiungiamo impersonate="chrome" per bypassare il blocco 403
+        response = requests.get(url_api, headers=headers, impersonate="chrome", timeout=15)
         response.raise_for_status()
         dati = response.json()
         
@@ -75,7 +82,6 @@ def analizza_inventario_tesla():
             return
 
         for auto in dati["results"]:
-            # Estrazione dati sicura dall'API di Tesla
             vin = auto.get("VIN")
             prezzo = auto.get("Price", 0)
             chilometri = auto.get("Odometer", 0)
@@ -85,23 +91,21 @@ def analizza_inventario_tesla():
             
             # 1. APPLICAZIONE FILTRI
             if prezzo > PREZZO_MASSIMO or chilometri > KM_MASSIMI or anno < ANNO_MINIMO:
-                continue # Salta questa auto perché non rispetta i tuoi filtri
+                continue 
             
             count_totale_filtrate += 1
             
             # 2. CONTROLLO DUPLICATI VIA VIN
             if vin in visti:
                 count_vecchie += 1
-                continue # Salta la notifica perché l'avevi già vista nei giorni scorsi
+                continue 
             
             # Se arriva qui, l'auto è NUOVA
             count_nuove += 1
             nuovi_visti.append(vin)
             
-            # Generazione del link diretto dell'auto
             link_auto = f"https://www.tesla.com/it_IT/inventory/used/{MODELLO}?id={vin}"
             
-            # Messaggio di notifica per la nuova auto
             messaggio_auto = (
                 f"🚗 <b>NUOVA TESLA INVENTARIO!</b>\n\n"
                 f"• <b>Modello:</b> Model {MODELLO.upper()} {allestimento}\n"
@@ -112,7 +116,7 @@ def analizza_inventario_tesla():
                 f"🔗 <a href='{link_auto}'>Apri Annuncio Ufficiale</a>"
             )
             invia_telegram(messaggio_auto)
-            time.sleep(2) # Evita il ban per spam da Telegram
+            time.sleep(2) 
 
         # 3. INVIO RESOCONTO GIORNALIERO
         resoconto = (
