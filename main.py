@@ -24,29 +24,29 @@ def get_autoscout():
 
         page.goto("https://www.autoscout24.it/lst/tesla/model-y", timeout=60000)
 
-        page.wait_for_timeout(5000)
+        page.wait_for_selector("article", timeout=15000)
 
-        # scroll forte
+        # scroll
         page.mouse.wheel(0, 15000)
         page.wait_for_timeout(3000)
 
-        links = page.query_selector_all("a[href*='/annunci/']")
+        elements = page.query_selector_all("article")
 
-        for link_el in links:
+        for el in elements:
             try:
-                href = link_el.get_attribute("href")
-                text = link_el.inner_text()
+                full_text = el.inner_text().lower()
 
-                if not href or not text:
+                if "model y" not in full_text:
                     continue
 
-                t = text.lower().replace("\n", " ")
-
-                if "model y" not in t:
+                # ---------------- PREZZO ----------------
+                price_el = el.query_selector("span[class*='PriceInfo_price']")
+                if not price_el:
                     continue
 
-                # -------- PREZZO --------
-                prezzo_match = re.search(r'€\s*([\d\.]+)', text)
+                price_text = price_el.inner_text()
+
+                prezzo_match = re.search(r'([\d\.]+)', price_text)
                 if not prezzo_match:
                     continue
 
@@ -55,19 +55,34 @@ def get_autoscout():
                 if prezzo > 31500 or prezzo < 20000:
                     continue
 
-                # -------- ANNO --------
+                # ---------------- ANNO ----------------
                 anno = None
-                for y in ["2026","2025","2024","2023","2022","2021"]:
-                    if y in text:
-                        anno = int(y)
+
+                date_elements = el.query_selector_all("div[class*='VehicleOverview_itemText']")
+
+                for d in date_elements:
+                    txt = d.inner_text()
+                    match = re.search(r'(\d{2})/(\d{4})', txt)
+                    if match:
+                        anno = int(match.group(2))
                         break
 
                 if not anno or anno < 2022:
                     continue
 
+                # ---------------- LINK ----------------
+                link_el = el.query_selector("a[href*='/annunci/']")
+                if not link_el:
+                    continue
+
+                href = link_el.get_attribute("href")
+                if not href:
+                    continue
+
                 link = "https://www.autoscout24.it" + href
 
-                results.append(f"€{prezzo} | {anno}\n{text[:100]}\n{link}")
+                # ---------------- OUTPUT ----------------
+                results.append(f"€{prezzo} | {anno}\n{link}")
 
             except:
                 pass
@@ -77,7 +92,7 @@ def get_autoscout():
     results = list(set(results))
 
     if not results:
-        return "❌ Nessuna Tesla valida trovata (ma ora è realistico)"
+        return "❌ Nessuna Tesla valida trovata"
 
     msg = "🚗 TESLA MODEL Y (MATCH):\n\n"
 
