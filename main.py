@@ -15,43 +15,55 @@ def send(msg):
 
 
 def get_autoscout():
+    results = []
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
 
         page = browser.new_page(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+            user_agent="Mozilla/5.0"
         )
 
         page.goto("https://www.autoscout24.it/lst/tesla/model-y", timeout=60000)
 
-        # aspetta caricamento
-        page.wait_for_timeout(6000)
+        page.wait_for_selector("article", timeout=15000)
 
-        # 🔥 PRENDIAMO TUTTO IL TESTO DELLA PAGINA
-        page_text = page.inner_text("body").lower().replace("\n", " ")
+        elements = page.query_selector_all("article")
+
+        for el in elements:
+            try:
+                text = el.inner_text()
+                t = text.lower().replace("\n", " ")
+
+                # 🔥 filtro robusto
+                if "model y" in t and (
+                    ("long" in t and "range" in t) or
+                    "dual motor" in t or
+                    "awd" in t or
+                    "performance" in t
+                ):
+
+                    link_el = el.query_selector("a")
+                    if link_el:
+                        href = link_el.get_attribute("href")
+
+                        if href and "/annunci/" in href:
+                            link = "https://www.autoscout24.it" + href
+
+                            results.append(f"{text[:120]}\n{link}")
+
+            except:
+                pass
 
         browser.close()
 
-    # 🔍 ANALISI TESTO
-    if "model y" not in page_text:
-        return "❌ Nessuna Model Y trovata"
+    if not results:
+        return "❌ Nessuna Model Y valida trovata"
 
-    matches = []
+    msg = "🚗 TESLA MODEL Y TROVATE:\n\n"
 
-    # spezzettiamo per non perdere info
-    chunks = page_text.split("€")
-
-    for chunk in chunks:
-        if "model y" in chunk and ("long" in chunk and "range" in chunk):
-            matches.append(chunk[:200])
-
-    if not matches:
-        return "❌ Nessuna Model Y Long Range trovata"
-
-    msg = "🚗 TESLA MODEL Y LONG RANGE:\n\n"
-
-    for m in matches[:5]:
-        msg += m + "\n\n"
+    for r in results[:5]:
+        msg += r + "\n\n"
 
     return msg
 
