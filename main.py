@@ -26,43 +26,47 @@ def get_autoscout():
 
         page.goto("https://www.autoscout24.it/lst/tesla/model-y", timeout=60000)
 
-        page.wait_for_selector("article", timeout=15000)
+        page.wait_for_timeout(5000)
 
-        elements = page.query_selector_all("article")
+        # scroll per caricare più annunci
+        page.mouse.wheel(0, 8000)
+        page.wait_for_timeout(3000)
 
-        for el in elements:
+        # 🔥 PRENDIAMO DIRETTAMENTE I LINK ANNUNCI
+        links = page.query_selector_all("a[href*='/annunci/']")
+
+        for link_el in links:
             try:
-                text = el.inner_text()
+                href = link_el.get_attribute("href")
+                text = link_el.inner_text()
+
+                if not href or not text:
+                    continue
+
                 t = text.lower().replace("\n", " ")
 
-                # 🔥 filtro robusto
-                if "model y" in t and (
-                    ("long" in t and "range" in t) or
-                    "dual motor" in t or
-                    "awd" in t or
-                    "performance" in t
-                ):
+                # 🔥 filtro più realistico
+                if "model y" in t:
 
-                    link_el = el.query_selector("a")
-                    if link_el:
-                        href = link_el.get_attribute("href")
+                    # NON filtriamo troppo → vediamo tutto
+                    full_link = "https://www.autoscout24.it" + href
 
-                        if href and "/annunci/" in href:
-                            link = "https://www.autoscout24.it" + href
-
-                            results.append(f"{text[:120]}\n{link}")
+                    results.append(f"{text[:100]}\n{full_link}")
 
             except:
                 pass
 
         browser.close()
 
+    # rimuovi duplicati
+    results = list(set(results))
+
     if not results:
-        return "❌ Nessuna Model Y valida trovata"
+        return "❌ Nessuna Model Y trovata (strano!)"
 
-    msg = "🚗 TESLA MODEL Y TROVATE:\n\n"
+    msg = "🚗 TESLA MODEL Y (GREZZO):\n\n"
 
-    for r in results[:5]:
+    for r in results[:10]:
         msg += r + "\n\n"
 
     return msg
