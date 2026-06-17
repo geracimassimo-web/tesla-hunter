@@ -2,25 +2,25 @@ import os
 import json
 import urllib.parse
 import time
-from curl_cffi import requests # 🪄 Qui avviene la magia: usiamo la versione camuffata
+import requests 
 
 # ==========================================
 # 🛠️ CONFIGURAZIONE FILTRI & CREDENZIALI
 # ==========================================
 CHAT_ID = "2022439793"
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+SCRAPER_API_KEY = os.environ.get("SCRAPER_API_KEY") # La tua nuova chiave proxy
 
-MODELLO = "m3"            # "m3" per Model 3, "my" per Model Y
-PREZZO_MASSIMO = 36000    # Imposta il tuo budget massimo in Euro
-KM_MASSIMI = 80000        # Chilometri massimi desiderati
-ANNO_MINIMO = 2021        # Anno minimo di immatricolazione
+MODELLO = "m3"            
+PREZZO_MASSIMO = 36000    
+KM_MASSIMI = 80000        
+ANNO_MINIMO = 2021        
 FILE_VISTI = "visti.json"
 # ==========================================
 
 def invia_telegram(testo):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": testo, "parse_mode": "HTML"}
-    # Per Telegram usiamo la richiesta base, non serve camuffarsi
     requests.post(url, json=payload)
 
 def carica_auto_viste():
@@ -40,7 +40,6 @@ def analizza_inventario_tesla():
     visti = carica_auto_viste()
     nuovi_visti = list(visti)
     
-    # Costruiamo la richiesta ufficiale per l'API di Tesla Italia
     query_struttura = {
         "query": {
             "model": MODELLO,
@@ -57,26 +56,21 @@ def analizza_inventario_tesla():
     }
     
     query_iniziale = urllib.parse.quote(json.dumps(query_struttura))
-    url_api = f"https://www.tesla.com/inventory/api/v1/inventory-results?query={query_iniziale}"
+    url_api_tesla = f"https://www.tesla.com/inventory/api/v1/inventory-results?query={query_iniziale}"
     
-    # Aggiungiamo degli header più realistici
-    headers = {
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept-Language": "it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7"
-    }
+    # Creiamo l'URL "Ponte" per far fare la chiamata dal proxy
+    url_scraper_api = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={urllib.parse.quote(url_api_tesla)}"
     
     count_totale_filtrate = 0
     count_vecchie = 0
     count_nuove = 0
 
     try:
-        # Aggiungiamo impersonate="chrome" per bypassare il blocco 403
-        response = requests.get(url_api, headers=headers, impersonate="chrome", timeout=15)
+        # Aumentiamo il timeout a 60 secondi perché il proxy ci mette un po' di più a instradare la chiamata
+        response = requests.get(url_scraper_api, timeout=60)
         response.raise_for_status()
         dati = response.json()
         
-        # Se non ci sono risultati nell'inventario
         if not dati.get("results"):
             invia_telegram("ℹ️ Nessuna Tesla usata disponibile nell'inventario generale.")
             return
@@ -89,18 +83,15 @@ def analizza_inventario_tesla():
             allestimento = auto.get("TrimName", "Standard")
             colore = auto.get("Paint", "N/D")
             
-            # 1. APPLICAZIONE FILTRI
             if prezzo > PREZZO_MASSIMO or chilometri > KM_MASSIMI or anno < ANNO_MINIMO:
                 continue 
             
             count_totale_filtrate += 1
             
-            # 2. CONTROLLO DUPLICATI VIA VIN
             if vin in visti:
                 count_vecchie += 1
                 continue 
             
-            # Se arriva qui, l'auto è NUOVA
             count_nuove += 1
             nuovi_visti.append(vin)
             
@@ -118,7 +109,6 @@ def analizza_inventario_tesla():
             invia_telegram(messaggio_auto)
             time.sleep(2) 
 
-        # 3. INVIO RESOCONTO GIORNALIERO
         resoconto = (
             f"📊 <b>Resoconto Giornaliero Tesla</b>\n"
             f"• Auto totali corrispondenti ai tuoi filtri: <b>{count_totale_filtrate}</b>\n"
@@ -127,7 +117,6 @@ def analizza_inventario_tesla():
         )
         invia_telegram(resoconto)
         
-        # Salviamo la nuova lista aggiornata per domani
         salva_auto_viste(nuovi_visti)
 
     except Exception as e:
