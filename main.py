@@ -38,11 +38,11 @@ def get_autoscout():
 
                 # 🔥 filtro intelligente
                 if "model y" in t and (
-                ("long" in t and "range" in t) or
-                "dual motor" in t or
-                "awd" in t or
-                "performance" in t
-            ):
+        ("long" in t and "range" in t) or
+        "dual motor" in t or
+        "awd" in t or
+        "performance" in t
+    ):
 
                     link_el = el.query_selector("a")
                     if link_el:
