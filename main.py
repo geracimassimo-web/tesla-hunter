@@ -20,23 +20,29 @@ def extract_details(page, url):
         page.goto(url, timeout=60000)
         page.wait_for_timeout(3000)
 
-        text = page.inner_text("body").lower()
+        text = page.inner_text("body")
 
-        # PREZZO
+        # -------- PREZZO --------
         prezzo_match = re.search(r'€\s*([\d\.]+)', text)
         if not prezzo_match:
             return None
 
         prezzo = int(prezzo_match.group(1).replace(".", ""))
 
-        # ANNO (formato 03/2022)
+        # -------- ANNO --------
         anno_match = re.search(r'(\d{2})/(\d{4})', text)
         if not anno_match:
             return None
 
         anno = int(anno_match.group(2))
 
-        return prezzo, anno
+        # -------- KM --------
+        km_match = re.search(r'([\d\.]+)\s*km', text.lower())
+        km = None
+        if km_match:
+            km = int(km_match.group(1).replace(".", ""))
+
+        return prezzo, anno, km
 
     except:
         return None
@@ -52,7 +58,7 @@ def get_autoscout():
         page.goto("https://www.autoscout24.it/lst/tesla/model-y", timeout=60000)
         page.wait_for_timeout(5000)
 
-        page.mouse.wheel(0, 15000)
+        page.mouse.wheel(0, 20000)
         page.wait_for_timeout(3000)
 
         links = page.query_selector_all("a[href*='/annunci/']")
@@ -63,22 +69,26 @@ def get_autoscout():
             if href and "/annunci/" in href:
                 urls.append("https://www.autoscout24.it" + href)
 
-        urls = list(set(urls))[:10]  # max 10 annunci per non rallentare
+        urls = list(set(urls))[:10]
 
         for url in urls:
             details = extract_details(page, url)
             if not details:
                 continue
 
-            prezzo, anno = details
+            prezzo, anno, km = details
 
+            # 🔥 FILTRI
             if prezzo > 31500 or prezzo < 20000:
                 continue
 
             if anno < 2022:
                 continue
 
-            results.append(f"€{prezzo} | {anno}\n{url}")
+            if km and km > 180000:
+                continue
+
+            results.append(f"€{prezzo} | {anno} | {km}km\n{url}")
 
         browser.close()
 
@@ -86,6 +96,7 @@ def get_autoscout():
         return "❌ Nessuna Tesla valida trovata"
 
     msg = "🚗 TESLA MODEL Y (MATCH REALI):\n\n"
+
     for r in results:
         msg += r + "\n\n"
 
