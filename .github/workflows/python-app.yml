@@ -3,10 +3,10 @@ name: Tesla Hunter
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 8 * * *' # Gira in automatico ogni giorno
+    - cron: '0 8 * * *'
 
 permissions:
-  contents: write # Permesso fondamentale per salvare i doppioni
+  contents: write
 
 jobs:
   run:
@@ -24,18 +24,18 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install curl_cffi
+          pip install requests
 
       - name: Run script
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
         run: python main.py
 
       - name: Salva cronologia auto viste
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "actions@github.com"
-          # Crea il file se non esiste al primo avvio
           if [ ! -f visti.json ]; then echo "[]" > visti.json; fi
           git add visti.json
           git diff-index --quiet HEAD || git commit -m "Aggiornato elenco auto viste [skip ci]" && git push
